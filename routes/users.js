@@ -1,6 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const bcypt = require('bcryptjs');
 const mongoose = require('mongoose');
+
+// Load User Model
+require('../models/User');
+const User = mongoose.model('users');
 
 // User Login Route
 router.get('/login', (req, res) => {
@@ -19,11 +24,9 @@ router.post('/register', (req, res) => {
     if (req.body.password != req.body.password2) {
         errors.push({text: 'Passwords do not match'})
     }
-
     if (req.body.password.length < 4) {
         errors.push({text: 'Password must be at least 4 characters'})
     }
-
     if (errors.length > 0) {
         res.render('users/register', {
             errors: errors,
@@ -33,10 +36,33 @@ router.post('/register', (req, res) => {
             password2: req.body.password2
         });
     } else {
-        res.send('passed');
+        User.findOne({email: req.body.email}).then(user => {
+                if (user) {
+                    req.flash('error_msg', 'Email already registered');
+                    res.redirect('/users/register');
+                } else {
+                    const newUser = new User({
+                        name: req.body.name,
+                        email: req.body.email,
+                        password: req.body.password
+                    });
+
+                    bcypt.genSalt(10, (err, salt) => {
+                        bcypt.hash(newUser.password, salt, (err, hash) => {
+                            if (err) throw err;
+                            newUser.password = hash;
+                            newUser.save().then(user => {
+                                req.flash('success_msg', 'You are now registered and can log in');
+                                res.redirect('/users/login');
+                            }).catch(err => {
+                                console.log(err);
+                                return;
+                            });
+                        });
+                    });
+                }
+            }
+        );
     }
-
 });
-
-
 module.exports = router;
